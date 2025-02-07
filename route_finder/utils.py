@@ -9,13 +9,9 @@ TRUCK_TANK_CAPACITY = 50  # Gallons
 MILES_PER_GALLON = 10
 TRUCK_RANGE = TRUCK_TANK_CAPACITY * MILES_PER_GALLON
 
-PROX_TRESHOLD = 3 # miles # higher value means more truck stops means possibly lower cost
+PROX_THRESHOLD = 2 # miles # higher value means more truck stops means possibly lower cost
 
-# station index sonsa fullemek yerine en son noktaya gidecek kadar al
-# 500m rangede station yoksa handle et
-# buldugun stationlari waypointe ekleyip googledan exacty route al
-
-def haversine(lat1, lon1, lat2, lon2):  # Haversine formula for distance
+def haversine(lat1, lon1, lat2, lon2):  # Haversine formula for distance # googlemaps' distane matrix api can be used instead
     # EXPENSIVE CALCULATION
     R = 6371  # Radius of Earth in km
     dLat = math.radians(lat2 - lat1)
@@ -36,6 +32,12 @@ def decode_polyline(encoded_polyline):
         lat_lng_tuples.append((float(point['lat']), float(point['lng']))) # Convert to float here!
     return lat_lng_tuples
 
+def is_truckstop (lat, lng, truck_stops: TruckStop):
+    for truckstop in truck_stops:
+        if haversine(truckstop.latitude,truckstop.longitude, lat,lng) < PROX_THRESHOLD:
+            return True, truckstop
+    return False, 0
+
 def find_optimized_truck_stops_and_cum_cost(decoded_polyline):
     """Finds truck stops with proximity treshold along the route. Assume that the truck stops are exactly on the route."""
     t0 = time.time()
@@ -48,8 +50,8 @@ def find_optimized_truck_stops_and_cum_cost(decoded_polyline):
     for index,waypoint in enumerate(decoded_polyline):
         _waypoint = {
             'index': index,
-            'latitude': waypoint[0],
-            'longitude': waypoint[1],
+            'lat': waypoint[0],
+            'lng': waypoint[1],
         }
         is_this_truckstop, truckstop = is_truckstop(waypoint[0], waypoint[1], truckstops)
         _waypoint["is_truckstop"] = is_this_truckstop
@@ -99,7 +101,7 @@ def find_optimized_truck_stops_and_cum_cost(decoded_polyline):
         next_cheaper_station_index = station['next_cheaper_station_index']
         if(next_cheaper_station_index is None):
             if(index==len(station_indexes)-1):
-            # if the last station, check if fuel is enough to reach the destination (greedy approach)
+                # if the last station, check if fuel is enough to reach the destination (greedy approach)
                 distance = waypoints[-1]['distance'] - station['distance']
                 fuel_needed = distance / MILES_PER_GALLON
                 if(fuel>=fuel_needed):
@@ -150,12 +152,6 @@ def find_optimized_truck_stops_and_cum_cost(decoded_polyline):
     t4 = time.time()
     print("Time taken to calculate fuel cost: ", t4-t3)
     return waypoints,cum_cost
-
-def is_truckstop (lat, lng, truck_stops: TruckStop):
-    for truckstop in truck_stops:
-        if haversine(truckstop.latitude,truckstop.longitude, lat,lng) < PROX_TRESHOLD:
-            return True, truckstop
-    return False, 0
 
 def get_routes(start_location, end_location, alternatives=2):  # alternatives: Number of alternative routes
     """
